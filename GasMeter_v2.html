@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GasMeter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F5F2EC; --surface: #FFFFFF; --surface2: #F0EDE6;
+    --accent: #E8612A; --accent2: #F0A05A;
+    --text: #1A1714; --text2: #6B655D; --text3: #A09890;
+    --border: rgba(26,23,20,0.1); --border2: rgba(26,23,20,0.06);
+    --blue: #2A6BE8; --green: #2A9E5A;
+    --radius: 16px; --radius-sm: 10px;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  nav {
+    background: var(--surface); border-bottom: 1px solid var(--border2);
+    padding: 0 32px; display: flex; align-items: center; height: 64px;
+    position: sticky; top: 0; z-index: 100; gap: 0;
+  }
+  .nav-brand { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--accent); margin-right: 40px; letter-spacing: -0.5px; }
+  .nav-brand span { color: var(--text); }
+  .nav-tabs { display: flex; gap: 4px; flex: 1; }
+  .nav-tab { padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--text2); transition: all 0.18s; font-family: 'DM Sans', sans-serif; }
+  .nav-tab:hover { background: var(--bg); color: var(--text); }
+  .nav-tab.active { background: var(--accent); color: white; }
+  .nav-action { background: var(--text); color: white; border: none; padding: 9px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s; }
+  .nav-action:hover { opacity: 0.85; }
+  main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border-radius: var(--radius); padding: 24px; border: 1px solid var(--border2); position: relative; overflow: hidden; }
+  .stat-card.accent { background: var(--accent); color: white; }
+  .stat-card.accent .stat-label, .stat-card.accent .stat-change { color: rgba(255,255,255,0.72); }
+  .stat-label { font-size: 12px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .stat-value { font-family: 'DM Serif Display', serif; font-size: 32px; line-height: 1.1; margin-bottom: 6px; }
+  .stat-unit { font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 300; opacity: 0.6; }
+  .stat-change { font-size: 13px; color: var(--text3); }
+  .stat-change.up { color: var(--accent); }
+  .stat-change.down { color: var(--green); }
+  .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .card { background: var(--surface); border-radius: var(--radius); padding: 28px; border: 1px solid var(--border2); }
+  .card-title { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); margin-bottom: 4px; }
+  .card-sub { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
+  .month-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .month-table th { text-align: left; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; padding: 0 12px 12px 12px; border-bottom: 1px solid var(--border2); }
+  .month-table td { padding: 12px; border-bottom: 1px solid var(--border2); color: var(--text); }
+  .month-table tr:last-child td { border-bottom: none; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .form-group { display: flex; flex-direction: column; gap: 8px; }
+  .form-group label { font-size: 13px; font-weight: 500; color: var(--text2); }
+  .form-group input, .form-group select {
+    background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 16px; font-size: 15px; font-family: 'DM Sans', sans-serif; color: var(--text);
+    transition: border-color 0.15s; outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: white; border: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s, transform 0.1s; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .btn-secondary:hover { background: var(--bg); border-color: var(--accent); }
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(232,97,42,0.04); }
+  .upload-text { font-size: 15px; color: var(--text2); margin-bottom: 6px; }
+  .upload-hint { font-size: 13px; color: var(--text3); }
+  .readings-list { max-height: 500px; overflow-y: auto; }
+  .reading-item { display: grid; grid-template-columns: 130px 1fr 110px 60px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border2); font-size: 14px; gap: 16px; }
+  .reading-item:last-child { border-bottom: none; }
+  .reading-date { color: var(--text2); font-size: 13px; }
+  .reading-val { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .reading-cons { font-size: 13px; font-weight: 500; padding: 4px 12px; border-radius: 20px; background: rgba(232,97,42,0.1); color: var(--accent); text-align: center; }
+  .reading-del { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
+  .reading-del:hover { color: #c0392b; background: #fef0ee; }
+  .year-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .year-tab { padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1.5px solid var(--border); background: var(--surface); color: var(--text2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .year-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .year-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .flame-bg { position: absolute; right: -8px; bottom: -8px; font-size: 56px; opacity: 0.07; pointer-events: none; line-height: 1; }
+  #toast { position: fixed; bottom: 32px; right: 32px; background: var(--text); color: white; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  .heatmap-grid { display: grid; grid-template-columns: 60px repeat(12, 1fr); gap: 4px; font-size: 11px; }
+  .hm-label { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: var(--text3); font-weight: 500; }
+  .hm-month-label { text-align: center; color: var(--text3); font-weight: 500; padding-bottom: 6px; }
+  .hm-cell { height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; cursor: default; transition: transform 0.15s; }
+  .hm-cell:hover { transform: scale(1.1); }
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-family: 'DM Serif Display', serif; font-size: 28px; margin-bottom: 4px; }
+  .page-header p { font-size: 14px; color: var(--text3); }
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-row { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+    nav { padding: 0 16px; }
+    .nav-brand { margin-right: 16px; }
+    .reading-item { grid-template-columns: 100px 1fr 80px 40px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Gas<span>Meter</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showSection('dashboard')">Dashboard</button>
+    <button class="nav-tab" onclick="showSection('eingabe')">Eingabe</button>
+    <button class="nav-tab" onclick="showSection('verlauf')">Verlauf</button>
+    <button class="nav-tab" onclick="showSection('vergleich')">Vergleich</button>
+  </div>
+  <button class="nav-action" onclick="showSection('eingabe')">+ Zählerstand</button>
+</nav>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section class="section active" id="section-dashboard">
+    <div class="page-header">
+      <h1>Übersicht</h1>
+      <p>Gastherme &middot; seit 13.09.2013</p>
+    </div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="chart-row">
+      <div class="card">
+        <div class="card-title">Jahresverbrauch</div>
+        <div class="card-sub">m³ pro Jahr seit Beginn</div>
+        <div style="position:relative;height:240px;">
+          <canvas id="chartYearly" role="img" aria-label="Jahresverbrauch in Kubikmetern"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monatsverteilung</div>
+        <div class="card-sub" id="month-dist-sub">Aktuelles Jahr</div>
+        <div style="position:relative;height:240px;">
+          <canvas id="chartMonthly" role="img" aria-label="Monatlicher Verbrauch"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Saisonales Muster</div>
+      <div class="card-sub">Verbrauch nach Monat über alle Jahre (m³)</div>
+      <div id="heatmap-container" style="overflow-x:auto;margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <!-- EINGABE -->
+  <section class="section" id="section-eingabe">
+    <div class="page-header">
+      <h1>Zählerstand eintragen</h1>
+      <p>Manuell eingeben oder Excel-Datei hochladen</p>
+    </div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title" style="margin-bottom:20px;">Manuelle Eingabe</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Datum</label>
+          <input type="date" id="input-date">
+        </div>
+        <div class="form-group">
+          <label>Zählerstand (m³)</label>
+          <input type="number" id="input-value" placeholder="z.B. 12847.5" step="0.1" min="0">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Notiz (optional)</label>
+          <input type="text" id="input-note" placeholder="z.B. Heizung aufgedreht">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button class="btn-primary" onclick="saveReading()">Eintrag speichern</button>
+        <span style="font-size:13px;color:var(--text3);" id="last-reading-hint"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:6px;">Excel / CSV Import</div>
+      <div class="card-sub" style="margin-bottom:20px;">Spalten: Datum (A), Zählerstand in m³ (B), Notiz (C, optional) &mdash; erste Zeile kann Kopfzeile sein</div>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event)">
+        <div style="font-size:40px;margin-bottom:16px;opacity:0.5;">📊</div>
+        <div class="upload-text">Excel-Datei hier ablegen oder klicken zum Auswählen</div>
+        <div class="upload-hint">.xlsx, .xls oder .csv &middot; Datum in Spalte A, Zählerstand in Spalte B</div>
+      </div>
+      <div id="import-preview" style="margin-top:16px;"></div>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title" style="margin-bottom:6px;">Daten verwalten</div>
+      <div class="card-sub" style="margin-bottom:16px;">Einträge exportieren oder gezielt löschen</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button class="btn-secondary" onclick="exportCSV()">&#128229; Als CSV exportieren</button>
+        <button class="btn-secondary" onclick="deleteFuture()" style="color:#c07000;border-color:rgba(192,112,0,0.3);">&#128197; Zukünftige Einträge löschen</button>
+        <button class="btn-secondary" onclick="deleteAll()" style="color:#c0392b;border-color:rgba(192,57,43,0.3);">&#128465; Alle Daten löschen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERLAUF -->
+  <section class="section" id="section-verlauf">
+    <div class="page-header">
+      <h1>Alle Ablesungen</h1>
+      <p id="verlauf-sub"></p>
+    </div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <select id="filter-year" onchange="renderVerlauf()" style="min-width:120px;">
+          <option value="">Alle Jahre</option>
+        </select>
+        <select id="filter-month" onchange="renderVerlauf()" style="min-width:150px;">
+          <option value="">Alle Monate</option>
+          <option value="1">Jänner</option><option value="2">Februar</option>
+          <option value="3">März</option><option value="4">April</option>
+          <option value="5">Mai</option><option value="6">Juni</option>
+          <option value="7">Juli</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">Oktober</option>
+          <option value="11">November</option><option value="12">Dezember</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="readings-list" id="readings-list"></div>
+    </div>
+  </section>
+
+  <!-- VERGLEICH -->
+  <section class="section" id="section-vergleich">
+    <div class="page-header">
+      <h1>Jahresvergleich</h1>
+      <p>Monatswerte verschiedener Jahre gegenüberstellen</p>
+    </div>
+    <div class="year-tabs" id="compare-year-tabs"></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">Monatswerte im Vergleich</div>
+      <div class="card-sub" id="compare-chart-sub">Ausgewählte Jahre</div>
+      <div style="position:relative;height:320px;">
+        <canvas id="chartCompare" role="img" aria-label="Jahresvergleich monatlich"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:20px;">Jahresübersicht</div>
+      <div style="overflow-x:auto;">
+        <table class="month-table" id="compare-table"></table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+const MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+const MONTHS_LONG = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+let readings = [];
+let chartYearly, chartMonthly, chartCompare;
+let compareYears = [];
+
+// ── Storage ──────────────────────────────────────────────────
+function loadData_old_unused() {
+  try {
+    const saved = localStorage.getItem('gasmeter_v3');
+    if (saved) readings = JSON.parse(saved);
+  } catch(e) { readings = []; }
+  readings.sort((a,b) => new Date(a.date) - new Date(b.date));
+}
+
+function saveData_old_unused() {
+  localStorage.setItem('gasmeter_v3', JSON.stringify(readings));
+}
+
+// ── UI helpers ────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  const map = { dashboard:0, eingabe:1, verlauf:2, vergleich:3 };
+  document.querySelectorAll('.nav-tab')[map[id]].classList.add('active');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'verlauf') renderVerlauf();
+  if (id === 'vergleich') renderVergleich();
+  if (id === 'eingabe') updateLastHint();
+}
+
+// ── Data calculations ─────────────────────────────────────────
+function getMonthlyData(year) {
+  const result = Array(12).fill(null);
+  for (let m = 0; m < 12; m++) {
+    const monthR = readings.filter(r => { const d = new Date(r.date); return d.getFullYear()===year && d.getMonth()===m; });
+    if (!monthR.length) continue;
+    const lastThis = monthR[monthR.length-1];
+    const pm = m===0?11:m-1, py = m===0?year-1:year;
+    const prevR = readings.filter(r => { const d=new Date(r.date); return d.getFullYear()===py && d.getMonth()===pm; });
+    let ref;
+    if (prevR.length) ref = prevR[prevR.length-1];
+    else { const before = readings.filter(r => new Date(r.date)<new Date(year,m,1)); if (before.length) ref=before[before.length-1]; }
+    if (ref) result[m] = Math.max(0, lastThis.value - ref.value);
+  }
+  return result;
+}
+
+function getYearlyTotal(year) {
+  return getMonthlyData(year).reduce((s,v) => s+(v||0), 0);
+}
+
+function getAvailableYears() {
+  return [...new Set(readings.map(r => new Date(r.date).getFullYear()))].sort();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────
+function renderDashboard() {
+  const years = getAvailableYears();
+  const now = new Date();
+  const curYear = now.getFullYear(), curMonth = now.getMonth();
+
+  if (!readings.length) {
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card" style="grid-column:1/-1;text-align:center;padding:56px 32px;">
+        <div style="font-size:52px;margin-bottom:20px;opacity:0.35;">🔥</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:10px;">Willkommen bei GasMeter</div>
+        <div style="font-size:15px;color:var(--text2);margin-bottom:6px;">Trage deinen ersten Zählerstand ein, um loszulegen.</div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:28px;">Du kannst Werte manuell eingeben oder eine Excel-Datei hochladen.</div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn-primary" onclick="showSection('eingabe')">Ersten Zählerstand eingeben</button>
+          <button class="btn-secondary" onclick="clearAndSample()">Beispieldaten laden</button>
+        </div>
+      </div>`;
+    document.getElementById('heatmap-container').innerHTML = '';
+    if (chartYearly) { chartYearly.destroy(); chartYearly=null; }
+    if (chartMonthly) { chartMonthly.destroy(); chartMonthly=null; }
+    document.getElementById('chartYearly').getContext('2d').clearRect(0,0,9999,9999);
+    document.getElementById('chartMonthly').getContext('2d').clearRect(0,0,9999,9999);
+    return;
+  }
+  const curYearData = getMonthlyData(curYear);
+  const prevYearData = getMonthlyData(curYear-1);
+  const curTotal = curYearData.reduce((s,v)=>s+(v||0),0);
+  const prevTotal = prevYearData.reduce((s,v)=>s+(v||0),0);
+  const allTotal = readings.length>1 ? readings[readings.length-1].value - readings[0].value : 0;
+  const curMonthVal = curYearData[curMonth]||0;
+  const prevMonthVal = prevYearData[curMonth]||0;
+  const monthChange = prevMonthVal>0 ? ((curMonthVal-prevMonthVal)/prevMonthVal*100).toFixed(1) : null;
+  const yearChange  = prevTotal>0  ? ((curTotal-prevTotal)/prevTotal*100).toFixed(1)            : null;
+  const lastR = readings[readings.length-1];
+
+  const stats = [
+    { label:'Aktueller Stand',       value: lastR ? lastR.value.toLocaleString('de-AT',{maximumFractionDigits:1}) : '–', unit:'m³', change: lastR ? new Date(lastR.date).toLocaleDateString('de-AT') : '', accent:true },
+    { label:`Verbrauch ${curYear}`,  value: Math.round(curTotal).toLocaleString('de-AT'), unit:'m³', change: yearChange!==null?(yearChange>0?`▲ ${yearChange}% vs. ${curYear-1}`:`▼ ${Math.abs(yearChange)}% vs. ${curYear-1}`):'Erstes Jahr', dir: yearChange!==null?(yearChange>0?'up':'down'):'' },
+    { label:`${MONTHS_LONG[curMonth]} ${curYear}`, value: Math.round(curMonthVal).toLocaleString('de-AT'), unit:'m³', change: monthChange!==null?(parseFloat(monthChange)>0?`▲ ${monthChange}% vs. Vorjahr`:`▼ ${Math.abs(monthChange)}% vs. Vorjahr`):'', dir: monthChange!==null?(parseFloat(monthChange)>0?'up':'down'):'' },
+    { label:'Gesamtverbrauch',       value: Math.round(allTotal).toLocaleString('de-AT'), unit:'m³', change:'seit 13.09.2013' }
+  ];
+
+  document.getElementById('stats-grid').innerHTML = stats.map(s => `
+    <div class="stat-card ${s.accent?'accent':''}">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value">${s.value} <span class="stat-unit">${s.unit}</span></div>
+      <div class="stat-change ${s.dir||''}">${s.change}</div>
+      <div class="flame-bg">🔥</div>
+    </div>`).join('');
+
+  renderYearlyChart(years);
+  renderMonthlyChart(curYear, curYearData);
+  renderHeatmap(years);
+}
+
+function renderYearlyChart(years) {
+  const ctx = document.getElementById('chartYearly').getContext('2d');
+  if (chartYearly) chartYearly.destroy();
+  chartYearly = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: years, datasets: [{ data: years.map(y=>Math.round(getYearlyTotal(y))), backgroundColor: years.map((_,i)=>i===years.length-1?'#E8612A':'#F0C4A8'), borderRadius:8, borderSkipped:false }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.raw.toLocaleString('de-AT')} m³`}} },
+      scales: {
+        x: { grid:{display:false}, ticks:{font:{family:'DM Sans',size:12},color:'#A09890'} },
+        y: { grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{family:'DM Sans',size:12},color:'#A09890',callback:v=>v.toLocaleString('de-AT')} }
+      }
+    }
+  });
+}
+
+function renderMonthlyChart(year, data) {
+  document.getElementById('month-dist-sub').textContent = `Monatswerte ${year}`;
+  const ctx = document.getElementById('chartMonthly').getContext('2d');
+  if (chartMonthly) chartMonthly.destroy();
+  chartMonthly = new Chart(ctx, {
+    type: 'line',
+    data: { labels:MONTHS, datasets:[{ data:data.map(v=>v!==null?Math.round(v):0), borderColor:'#E8612A', backgroundColor:'rgba(232,97,42,0.08)', borderWidth:2.5, pointBackgroundColor:'#E8612A', pointRadius:5, tension:0.4, fill:true }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.raw} m³`}} },
+      scales: {
+        x: { grid:{display:false}, ticks:{font:{family:'DM Sans',size:11},color:'#A09890'} },
+        y: { grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{family:'DM Sans',size:11},color:'#A09890'} }
+      }
+    }
+  });
+}
+
+function renderHeatmap(years) {
+  const c = document.getElementById('heatmap-container');
+  if (!years.length) { c.innerHTML=''; return; }
+  const allData={}, maxVal=0;
+  let mx=0;
+  years.forEach(y => { allData[y]=getMonthlyData(y); allData[y].forEach(v=>{if(v&&v>mx)mx=v;}); });
+  const gc = v => {
+    if (!v||v===0) return '#F0EDE6';
+    const i=Math.min(1,v/mx);
+    return `rgb(${Math.round(255-23*i)},${Math.round(255-158*i)},${Math.round(255-213*i)})`;
+  };
+  const gt = v => (!v||v===0)?'transparent':(v/mx>0.5?'rgba(255,255,255,0.9)':'rgba(120,50,20,0.8)');
+
+  let html = '<div class="heatmap-grid"><div class="hm-label"></div>'+MONTHS.map(m=>`<div class="hm-month-label">${m}</div>`).join('');
+  years.forEach(y => {
+    html += `<div class="hm-label">${y}</div>`;
+    allData[y].forEach((val,mi) => {
+      html += `<div class="hm-cell" style="background:${gc(val)};color:${gt(val)};" title="${MONTHS_LONG[mi]} ${y}: ${Math.round(val||0)} m³">${val&&val>0?Math.round(val):''}</div>`;
+    });
+  });
+  c.innerHTML = html+'</div>';
+}
+
+// ── Verlauf ───────────────────────────────────────────────────
+function renderVerlauf() {
+  const years = getAvailableYears();
+  const sel = document.getElementById('filter-year');
+  const cv = sel.value;
+  sel.innerHTML = '<option value="">Alle Jahre</option>' + years.map(y=>`<option value="${y}" ${y==cv?'selected':''}>${y}</option>`).join('');
+
+  const fy=sel.value, fm=document.getElementById('filter-month').value;
+  let filtered=[...readings].reverse();
+  if (fy) filtered=filtered.filter(r=>new Date(r.date).getFullYear()==fy);
+  if (fm) filtered=filtered.filter(r=>new Date(r.date).getMonth()+1==fm);
+
+  document.getElementById('verlauf-sub').textContent=`${readings.length} Einträge gesamt`;
+  const list=document.getElementById('readings-list');
+  if (!filtered.length) {
+    list.innerHTML='<div style="text-align:center;padding:56px;color:var(--text3);"><div style="font-size:36px;margin-bottom:12px;opacity:0.4;">📋</div><div style="font-size:15px;color:var(--text2);">Keine Einträge gefunden</div></div>';
+    return;
+  }
+  list.innerHTML=filtered.map(r => {
+    const idx=readings.findIndex(x=>x.id===r.id);
+    const prev=readings[idx-1];
+    const cons=prev?Math.round(r.value-prev.value):null;
+    const ds=new Date(r.date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return `<div class="reading-item">
+      <div class="reading-date">${ds}</div>
+      <div><div class="reading-val">${r.value.toLocaleString('de-AT',{maximumFractionDigits:1})} <span style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text3);">m³</span></div>${r.note?`<div style="font-size:12px;color:var(--text3);margin-top:2px;">${r.note}</div>`:''}</div>
+      <div class="reading-cons">${cons!==null?cons+' m³':'–'}</div>
+      <button class="reading-del" onclick="deleteReading('${r.id}')" title="Löschen">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Vergleich ─────────────────────────────────────────────────
+function renderVergleich() {
+  const years=getAvailableYears();
+  if (!years.length) { document.getElementById('compare-year-tabs').innerHTML='<div style="color:var(--text3);font-size:14px;">Noch keine Daten vorhanden.</div>'; return; }
+  if (!compareYears.length) compareYears=years.slice(-3);
+  compareYears=compareYears.filter(y=>years.includes(y));
+
+  document.getElementById('compare-year-tabs').innerHTML=years.map(y=>`<button class="year-tab ${compareYears.includes(y)?'active':''}" onclick="toggleCompareYear(${y})">${y}</button>`).join('');
+
+  const COLORS=['#E8612A','#2A6BE8','#2A9E5A','#D4A017','#9B59B6','#E74C3C','#1ABC9C','#F39C12'];
+  const ctx=document.getElementById('chartCompare').getContext('2d');
+  if (chartCompare) chartCompare.destroy();
+  chartCompare=new Chart(ctx, {
+    type:'line',
+    data:{ labels:MONTHS, datasets:compareYears.map((y,i)=>({ label:y.toString(), data:getMonthlyData(y).map(v=>v!==null?Math.round(v):null), borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length]+'15', borderWidth:2.5, pointRadius:4, tension:0.4, spanGaps:true })) },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.raw!==null?c.raw+' m³':'k.A.'}`}} },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:12},color:'#A09890'}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'DM Sans',size:12},color:'#A09890'}}
+      }
+    }
+  });
+
+  document.getElementById('compare-chart-sub').innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;">${compareYears.map((y,i)=>`<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);"><span style="width:28px;height:3px;background:${COLORS[i%COLORS.length]};border-radius:2px;display:inline-block;"></span>${y}</span>`).join('')}</div>`;
+
+  let tbl='<thead><tr><th>Jahr</th><th>Gesamt m³</th>'+MONTHS.map(m=>`<th style="text-align:right;">${m}</th>`).join('')+'</tr></thead><tbody>';
+  compareYears.forEach((y,i)=>{
+    const mo=getMonthlyData(y);
+    const tot=mo.reduce((s,v)=>s+(v||0),0);
+    tbl+=`<tr><td style="font-weight:500;color:${COLORS[i%COLORS.length]};">${y}</td><td style="font-weight:600;">${Math.round(tot).toLocaleString('de-AT')}</td>${mo.map(v=>`<td style="text-align:right;color:var(--text2);">${v!==null?Math.round(v):'–'}</td>`).join('')}</tr>`;
+  });
+  document.getElementById('compare-table').innerHTML=tbl+'</tbody>';
+}
+
+function toggleCompareYear(y) {
+  const i=compareYears.indexOf(y);
+  if (i>=0) { if(compareYears.length>1) compareYears.splice(i,1); }
+  else { compareYears.push(y); compareYears.sort(); }
+  renderVergleich();
+}
+
+// ── Eingabe ───────────────────────────────────────────────────
+function saveReading() {
+  const date=document.getElementById('input-date').value;
+  const value=parseFloat(document.getElementById('input-value').value);
+  const note=document.getElementById('input-note').value.trim();
+  if (!date) { showToast('⚠️ Bitte Datum auswählen'); return; }
+  if (isNaN(value)||value<0) { showToast('⚠️ Bitte gültigen Zählerstand eingeben'); return; }
+  const last=readings[readings.length-1];
+  if (last&&value<last.value) { if(!confirm(`Eingegebener Wert (${value}) ist kleiner als letzter Eintrag (${last.value}). Trotzdem speichern?`)) return; }
+  readings.push({id:Date.now().toString(),date,value,note});
+  readings.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  saveData();
+  document.getElementById('input-date').value='';
+  document.getElementById('input-value').value='';
+  document.getElementById('input-note').value='';
+  showToast(`✓ ${value.toLocaleString('de-AT')} m³ gespeichert`);
+  updateLastHint();
+}
+
+function updateLastHint() {
+  const last=readings[readings.length-1];
+  document.getElementById('last-reading-hint').textContent=last?`Letzter Eintrag: ${last.value.toLocaleString('de-AT')} m³ am ${new Date(last.date).toLocaleDateString('de-AT')}`:'Noch kein Eintrag vorhanden';
+  document.getElementById('input-date').value=new Date().toISOString().split('T')[0];
+}
+
+function deleteReading(id) {
+  if(!confirm('Diesen Eintrag wirklich löschen?')) return;
+  readings=readings.filter(r=>r.id!==id);
+  saveData(); renderVerlauf();
+  showToast('Eintrag gelöscht');
+}
+
+// Excel serial number to JS Date
+function excelSerialToDate(serial) {
+  var s = parseInt(serial);
+  if (isNaN(s) || s < 1) return null;
+  var d = new Date((s - 25569) * 86400 * 1000);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function handleFile(event) {
+  var file=event.target.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e) {
+    try {
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:false,raw:true});
+      var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true});
+      var newR=[],errors=[],warnings=[];
+      var prevVal=null;
+      var todayMs = new Date(); todayMs.setHours(23,59,59,999);
+      rows.forEach(function(row,idx){
+        if(idx===0&&isNaN(parseFloat(row[0]))) return;
+        if(row[0]===undefined||row[0]===null||row[0]==='') return;
+        if(row[1]===undefined||row[1]===null||row[1]==='') return;
+        var d=null;
+        var raw0=row[0];
+        if(typeof raw0==='number'&&raw0>1000) {
+          d=excelSerialToDate(raw0);
+        } else if(typeof raw0==='string') {
+          var p=raw0.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+          if(p){var y=parseInt(p[3]);if(y<100)y+=2000;d=new Date(y,parseInt(p[2])-1,parseInt(p[1]));}
+          else d=new Date(raw0);
+        } else if(raw0 instanceof Date) {
+          d=raw0;
+        }
+        if(!d||isNaN(d.getTime())){errors.push('Zeile '+(idx+1)+': Ungültiges Datum');return;}
+        if(d>todayMs){errors.push('Zeile '+(idx+1)+': Zukunftsdatum übersprungen ('+d.toLocaleDateString('de-AT')+')');return;}
+        var val=parseFloat(String(row[1]).replace(',','.'));
+        if(isNaN(val)){errors.push('Zeile '+(idx+1)+': Ungültiger Zählerstand');return;}
+        if(prevVal!==null&&val<prevVal*0.9&&prevVal-val>100){
+          warnings.push({idx:idx+1,date:d.toLocaleDateString('de-AT'),val:val,prevVal:prevVal});
+        }
+        prevVal=val;
+        newR.push({id:Date.now()+'_'+idx,date:d.toISOString().split('T')[0],value:val,note:row[2]||''});
+      });
+      var preview=document.getElementById('import-preview');
+      if(!newR.length){preview.innerHTML='<div style="color:#c0392b;padding:12px;background:#fef0ee;border-radius:10px;font-size:14px;">Keine gültigen Daten gefunden. Format: Datum (A), Zählerstand m³ (B).</div>';return;}
+      var first=newR[0]?new Date(newR[0].date).toLocaleDateString('de-AT'):'';
+      var last=newR[newR.length-1]?new Date(newR[newR.length-1].date).toLocaleDateString('de-AT'):'';
+      var warnHTML=warnings.length?'<div style="background:#fff8e6;border:1px solid #f0c050;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;"><strong>&#9888;&#65039; '+warnings.length+' mögliche Tippfehler erkannt:</strong><br>'+warnings.map(function(w){return 'Zeile '+w.idx+': '+w.date+' &#x2192; '+w.val.toLocaleString('de-AT')+' m³ (vorher: '+w.prevVal.toLocaleString('de-AT')+' m³)';}).join('<br>')+'<br><span style="color:var(--text3);">Diese Werte werden importiert – bitte im Verlauf prüfen.</span></div>':'';
+      preview.innerHTML='<div style="background:var(--surface2);border-radius:12px;padding:20px;"><div style="font-weight:500;margin-bottom:12px;">'+newR.length+' Einträge erkannt &middot; '+first+' bis '+last+'</div><div style="max-height:180px;overflow-y:auto;margin-bottom:16px;">'+newR.slice(0,6).map(function(r){return '<div style="font-size:13px;color:var(--text2);padding:6px 0;border-bottom:1px solid var(--border2);">'+new Date(r.date).toLocaleDateString('de-AT')+' &#x2192; '+r.value.toLocaleString('de-AT')+' m³</div>';}).join('')+(newR.length>6?'<div style="font-size:13px;color:var(--text3);padding:8px 0;">&#x2026; und '+(newR.length-6)+' weitere</div>':'')+'</div>'+warnHTML+(errors.length?'<div style="font-size:12px;color:#c0392b;margin-bottom:12px;">'+errors.length+' Zeile(n) übersprungen</div>':'')+'<button class="btn-primary" onclick=\'importReadings('+JSON.stringify(newR)+')\'>Alle importieren</button></div>';
+    } catch(err){document.getElementById('import-preview').innerHTML='<div style="color:#c0392b;padding:12px;background:#fef0ee;border-radius:10px;font-size:14px;">Fehler: '+err.message+'</div>';}
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value='';
+}
+
+function importReadings(newR) {
+  let added=0,skipped=0;
+  newR.forEach(r=>{
+    if(!readings.some(x=>x.date===r.date&&Math.abs(x.value-r.value)<0.01)){readings.push({...r,id:Date.now()+'_'+Math.random()});added++;}
+    else skipped++;
+  });
+  readings.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  saveData();
+  document.getElementById('import-preview').innerHTML='';
+  showToast(`✓ ${added} importiert${skipped?', '+skipped+' doppelte übersprungen':''}`);
+  renderDashboard();
+}
+
+// ── Delete functions ─────────────────────────────────────────
+function deleteAll() {
+  if (!readings.length) { showToast("Keine Daten vorhanden"); return; }
+  if (!confirm("Wirklich alle " + readings.length + " Eintraege unwiderruflich loeschen?")) return;
+  readings = [];
+  saveData();
+  compareYears = [];
+  renderDashboard();
+  showSection("dashboard");
+  showToast("Alle Daten geloescht");
+}
+
+function deleteFuture() {
+  const today = new Date().toISOString().split("T")[0];
+  const future = readings.filter(r => r.date > today);
+  if (!future.length) { showToast("Keine zukunftigen Eintraege vorhanden"); return; }
+  if (!confirm(future.length + " zukuenftige Eintraege loeschen?")) return;
+  readings = readings.filter(r => r.date <= today);
+  saveData();
+  renderDashboard();
+  renderVerlauf();
+  showToast(future.length + " zukuenftige Eintraege geloescht");
+}
+
+// ── Export ────────────────────────────────────────────────────
+function exportCSV() {
+  if (!readings.length){showToast('Keine Daten zum Exportieren');return;}
+  const rows=['Datum,Zaehlerstand_m3,Verbrauch_m3,Notiz'];
+  readings.forEach((r,i)=>{
+    const prev=readings[i-1];
+    const cons=prev?Math.round(r.value-prev.value):'';
+    rows.push(`${r.date},${r.value},${cons},"${r.note||''}"`);
+  });
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`gasmeter_export_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  showToast('✓ CSV exportiert');
+}
+
+// ── Sample data ───────────────────────────────────────────────
+function generateSampleData() {
+  const data=[];let val=0;
+  const sf=m=>{
+    if([11,0,1].includes(m)) return 160+Math.random()*60;
+    if([2,10].includes(m))   return 90+Math.random()*40;
+    if([3,9].includes(m))    return 45+Math.random()*25;
+    if([4,8].includes(m))    return 20+Math.random()*15;
+    return 8+Math.random()*8;
+  };
+  let d=new Date(2013,8,13);
+  while(d<=new Date()){
+    val+=sf(d.getMonth());
+    data.push({id:'s_'+data.length,date:d.toISOString().split('T')[0],value:Math.round(val*10)/10,note:''});
+    d=new Date(d.getFullYear(),d.getMonth()+1,13);
+  }
+  return data;
+}
+
+function clearAndSample() {
+  if(!confirm('Alle Einträge löschen und Beispieldaten laden?')) return;
+  readings=generateSampleData();
+  saveData(); compareYears=[];
+  renderDashboard(); showSection('dashboard');
+  showToast('✓ Beispieldaten geladen');
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────
+const zone=document.getElementById('upload-zone');
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+zone.addEventListener('drop',e=>{
+  e.preventDefault();zone.classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f) handleFile({target:{files:[f],value:''}});
+});
+
+// ── Init ──────────────────────────────────────────────────────
+localStorage.removeItem('gasmeter_readings');
+localStorage.removeItem('gasmeter_readings_v2');
+// Neue Storage-Key für v2
+var STORAGE_KEY = 'gasmeter_v2_clean';
+
+// Override saveData/loadData to use new key
+function loadData() {
+  try {
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) readings = JSON.parse(saved);
+  } catch(e) { readings = []; }
+  readings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(readings));
+}
+
+loadData();
+if (!readings.length) {
+  readings = [{"id": "xl_0", "date": "2013-09-13", "value": 8137.0, "note": ""}, {"id": "xl_1", "date": "2013-09-30", "value": 8249.0, "note": ""}, {"id": "xl_2", "date": "2013-10-20", "value": 8429.0, "note": ""}, {"id": "xl_3", "date": "2013-10-29", "value": 8477.0, "note": ""}, {"id": "xl_4", "date": "2013-11-02", "value": 8508.0, "note": ""}, {"id": "xl_5", "date": "2013-11-12", "value": 8609.0, "note": ""}, {"id": "xl_6", "date": "2013-11-30", "value": 8913.0, "note": ""}, {"id": "xl_7", "date": "2013-12-12", "value": 9120.0, "note": ""}, {"id": "xl_8", "date": "2013-12-19", "value": 9249.0, "note": ""}, {"id": "xl_9", "date": "2013-12-23", "value": 9327.0, "note": ""}, {"id": "xl_10", "date": "2014-01-02", "value": 9495.0, "note": ""}, {"id": "xl_11", "date": "2014-01-08", "value": 9613.0, "note": ""}, {"id": "xl_12", "date": "2014-01-14", "value": 9719.0, "note": ""}, {"id": "xl_13", "date": "2014-01-24", "value": 9901.0, "note": ""}, {"id": "xl_14", "date": "2014-01-26", "value": 9938.0, "note": ""}, {"id": "xl_15", "date": "2014-02-01", "value": 10070.0, "note": ""}, {"id": "xl_16", "date": "2014-02-10", "value": 10207.0, "note": ""}, {"id": "xl_17", "date": "2014-02-22", "value": 10375.0, "note": ""}, {"id": "xl_18", "date": "2014-03-02", "value": 10483.0, "note": ""}, {"id": "xl_19", "date": "2014-03-05", "value": 10524.0, "note": ""}, {"id": "xl_20", "date": "2014-03-18", "value": 10654.0, "note": ""}, {"id": "xl_21", "date": "2014-03-29", "value": 10756.0, "note": ""}, {"id": "xl_22", "date": "2014-04-03", "value": 10788.0, "note": ""}, {"id": "xl_23", "date": "2014-04-17", "value": 10925.0, "note": ""}, {"id": "xl_24", "date": "2014-05-12", "value": 11081.0, "note": ""}, {"id": "xl_25", "date": "2014-05-23", "value": 11139.0, "note": ""}, {"id": "xl_26", "date": "2014-06-20", "value": 11188.0, "note": ""}, {"id": "xl_27", "date": "2014-06-26", "value": 11194.0, "note": ""}, {"id": "xl_28", "date": "2014-07-11", "value": 11219.0, "note": ""}, {"id": "xl_29", "date": "2014-07-29", "value": 11224.0, "note": ""}, {"id": "xl_30", "date": "2014-08-03", "value": 11225.0, "note": ""}, {"id": "xl_31", "date": "2014-08-17", "value": 11248.0, "note": ""}, {"id": "xl_32", "date": "2014-09-01", "value": 11302.0, "note": ""}, {"id": "xl_33", "date": "2014-09-03", "value": 11322.0, "note": ""}, {"id": "xl_34", "date": "2014-09-13", "value": 11352.0, "note": ""}, {"id": "xl_35", "date": "2014-09-20", "value": 11373.0, "note": ""}, {"id": "xl_36", "date": "2014-09-24", "value": 11398.0, "note": ""}, {"id": "xl_37", "date": "2014-09-30", "value": 11434.0, "note": ""}, {"id": "xl_38", "date": "2014-10-23", "value": 11598.0, "note": ""}, {"id": "xl_39", "date": "2014-11-01", "value": 11702.0, "note": ""}, {"id": "xl_40", "date": "2014-11-04", "value": 11741.0, "note": ""}, {"id": "xl_41", "date": "2014-11-29", "value": 12077.0, "note": ""}, {"id": "xl_42", "date": "2014-12-09", "value": 12251.0, "note": ""}, {"id": "xl_43", "date": "2014-12-11", "value": 12291.0, "note": ""}, {"id": "xl_44", "date": "2014-12-14", "value": 12331.0, "note": ""}, {"id": "xl_45", "date": "2014-12-20", "value": 12426.0, "note": ""}, {"id": "xl_46", "date": "2014-12-27", "value": 12536.0, "note": ""}, {"id": "xl_47", "date": "2015-01-01", "value": 12668.0, "note": ""}, {"id": "xl_48", "date": "2015-01-05", "value": 12739.0, "note": ""}, {"id": "xl_49", "date": "2015-01-26", "value": 13133.0, "note": ""}, {"id": "xl_50", "date": "2015-02-01", "value": 13242.0, "note": ""}, {"id": "xl_51", "date": "2015-02-28", "value": 13744.0, "note": ""}, {"id": "xl_52", "date": "2015-03-28", "value": 14120.0, "note": ""}, {"id": "xl_53", "date": "2015-04-01", "value": 14181.0, "note": ""}, {"id": "xl_54", "date": "2015-04-29", "value": 14393.0, "note": ""}, {"id": "xl_55", "date": "2015-05-09", "value": 14445.0, "note": ""}, {"id": "xl_56", "date": "2015-05-23", "value": 14507.0, "note": ""}, {"id": "xl_57", "date": "2015-07-11", "value": 14603.0, "note": ""}, {"id": "xl_58", "date": "2015-07-28", "value": 14604.0, "note": ""}, {"id": "xl_59", "date": "2015-08-26", "value": 14658.0, "note": ""}, {"id": "xl_60", "date": "2015-09-14", "value": 14708.0, "note": ""}, {"id": "xl_61", "date": "2015-09-21", "value": 14732.0, "note": ""}, {"id": "xl_62", "date": "2015-10-11", "value": 14866.0, "note": ""}, {"id": "xl_63", "date": "2015-10-23", "value": 15006.0, "note": ""}, {"id": "xl_64", "date": "2015-10-31", "value": 15086.0, "note": ""}, {"id": "xl_65", "date": "2015-11-07", "value": 15166.0, "note": ""}, {"id": "xl_66", "date": "2015-11-23", "value": 15356.0, "note": ""}, {"id": "xl_67", "date": "2015-12-05", "value": 15547.0, "note": ""}, {"id": "xl_68", "date": "2015-12-13", "value": 15680.0, "note": ""}, {"id": "xl_69", "date": "2015-12-20", "value": 15796.0, "note": ""}, {"id": "xl_70", "date": "2015-12-23", "value": 15840.0, "note": ""}, {"id": "xl_71", "date": "2015-12-31", "value": 15975.0, "note": ""}, {"id": "xl_72", "date": "2016-01-10", "value": 16185.0, "note": ""}, {"id": "xl_73", "date": "2016-01-19", "value": 16358.0, "note": ""}, {"id": "xl_74", "date": "2016-02-06", "value": 16680.0, "note": ""}, {"id": "xl_75", "date": "2016-03-03", "value": 17085.0, "note": ""}, {"id": "xl_76", "date": "2016-03-14", "value": 17236.0, "note": ""}, {"id": "xl_77", "date": "2016-03-27", "value": 17395.0, "note": ""}, {"id": "xl_78", "date": "2016-04-01", "value": 17429.0, "note": ""}, {"id": "xl_79", "date": "2016-04-21", "value": 17584.0, "note": ""}, {"id": "xl_80", "date": "2016-04-28", "value": 17659.0, "note": ""}, {"id": "xl_81", "date": "2016-05-05", "value": 17711.0, "note": ""}, {"id": "xl_82", "date": "2016-08-12", "value": 17892.0, "note": ""}, {"id": "xl_83", "date": "2016-09-11", "value": 17911.0, "note": ""}, {"id": "xl_84", "date": "2016-10-05", "value": 18019.0, "note": ""}, {"id": "xl_85", "date": "2016-10-22", "value": 18196.0, "note": ""}, {"id": "xl_86", "date": "2016-10-29", "value": 18262.0, "note": ""}, {"id": "xl_87", "date": "2016-11-10", "value": 18450.0, "note": ""}, {"id": "xl_88", "date": "2016-12-05", "value": 18859.0, "note": ""}, {"id": "xl_89", "date": "2016-12-09", "value": 18894.0, "note": ""}, {"id": "xl_90", "date": "2016-12-22", "value": 19167.0, "note": ""}, {"id": "xl_91", "date": "2017-01-03", "value": 19394.0, "note": ""}, {"id": "xl_92", "date": "2017-01-07", "value": 19499.0, "note": ""}, {"id": "xl_93", "date": "2017-01-24", "value": 19908.0, "note": ""}, {"id": "xl_94", "date": "2017-01-29", "value": 20022.0, "note": ""}, {"id": "xl_95", "date": "2017-02-18", "value": 20406.0, "note": ""}, {"id": "xl_96", "date": "2017-03-19", "value": 20792.0, "note": ""}, {"id": "xl_97", "date": "2017-04-11", "value": 20981.0, "note": ""}, {"id": "xl_98", "date": "2017-05-01", "value": 21206.0, "note": ""}, {"id": "xl_99", "date": "2017-06-14", "value": 21313.0, "note": ""}, {"id": "xl_100", "date": "2017-07-16", "value": 21319.0, "note": ""}, {"id": "xl_101", "date": "2017-08-13", "value": 21338.0, "note": ""}, {"id": "xl_102", "date": "2017-08-28", "value": 21344.0, "note": ""}, {"id": "xl_103", "date": "2017-10-04", "value": 21529.0, "note": ""}, {"id": "xl_104", "date": "2017-11-03", "value": 21797.0, "note": ""}, {"id": "xl_105", "date": "2017-11-15", "value": 21976.0, "note": ""}, {"id": "xl_106", "date": "2017-11-29", "value": 22203.0, "note": ""}, {"id": "xl_107", "date": "2017-12-16", "value": 22527.0, "note": ""}, {"id": "xl_108", "date": "2018-01-01", "value": 22846.0, "note": ""}, {"id": "xl_109", "date": "2018-01-15", "value": 23078.0, "note": ""}, {"id": "xl_110", "date": "2018-01-31", "value": 23365.0, "note": ""}, {"id": "xl_111", "date": "2018-02-22", "value": 23799.0, "note": ""}, {"id": "xl_112", "date": "2018-03-02", "value": 24001.0, "note": ""}, {"id": "xl_113", "date": "2018-03-27", "value": 24413.0, "note": ""}, {"id": "xl_114", "date": "2018-04-03", "value": 24488.0, "note": ""}, {"id": "xl_115", "date": "2018-04-14", "value": 24542.0, "note": ""}, {"id": "xl_116", "date": "2018-04-24", "value": 24566.0, "note": ""}, {"id": "xl_117", "date": "2018-06-17", "value": 24655.0, "note": ""}, {"id": "xl_118", "date": "2018-06-24", "value": 24661.0, "note": ""}, {"id": "xl_119", "date": "2018-08-10", "value": 24686.0, "note": ""}, {"id": "xl_120", "date": "2018-09-23", "value": 24741.0, "note": ""}, {"id": "xl_121", "date": "2018-10-26", "value": 24947.0, "note": ""}, {"id": "xl_122", "date": "2018-11-13", "value": 25118.0, "note": ""}, {"id": "xl_123", "date": "2018-12-24", "value": 25849.0, "note": ""}, {"id": "xl_124", "date": "2019-01-13", "value": 26252.0, "note": ""}, {"id": "xl_125", "date": "2019-02-16", "value": 26951.0, "note": ""}, {"id": "xl_126", "date": "2019-03-27", "value": 27481.0, "note": ""}, {"id": "xl_127", "date": "2019-04-28", "value": 27683.0, "note": ""}, {"id": "xl_128", "date": "2019-08-21", "value": 27940.0, "note": ""}, {"id": "xl_129", "date": "2019-09-09", "value": 27968.0, "note": ""}, {"id": "xl_130", "date": "2019-10-15", "value": 28178.0, "note": ""}, {"id": "xl_131", "date": "2019-11-23", "value": 28642.0, "note": ""}, {"id": "xl_132", "date": "2020-02-04", "value": 29968.0, "note": ""}, {"id": "xl_133", "date": "2020-03-29", "value": 30721.0, "note": ""}, {"id": "xl_134", "date": "2020-05-03", "value": 30938.0, "note": ""}, {"id": "xl_135", "date": "2020-05-24", "value": 31041.0, "note": ""}, {"id": "xl_136", "date": "2020-06-10", "value": 31120.0, "note": ""}, {"id": "xl_137", "date": "2020-07-13", "value": 31171.0, "note": ""}, {"id": "xl_138", "date": "2020-08-03", "value": 31191.0, "note": ""}, {"id": "xl_139", "date": "2020-09-01", "value": 31207.0, "note": ""}, {"id": "xl_140", "date": "2020-09-14", "value": 31238.0, "note": ""}, {"id": "xl_141", "date": "2020-10-11", "value": 31373.0, "note": ""}, {"id": "xl_142", "date": "2020-11-02", "value": 31627.0, "note": ""}, {"id": "xl_143", "date": "2020-11-14", "value": 31790.0, "note": ""}, {"id": "xl_144", "date": "2020-11-21", "value": 31893.0, "note": ""}, {"id": "xl_145", "date": "2020-12-02", "value": 32091.0, "note": ""}, {"id": "xl_146", "date": "2020-12-12", "value": 32273.0, "note": ""}, {"id": "xl_147", "date": "2020-12-30", "value": 32610.0, "note": ""}, {"id": "xl_148", "date": "2021-02-27", "value": 33777.0, "note": ""}, {"id": "xl_149", "date": "2021-03-13", "value": 33990.0, "note": ""}, {"id": "xl_150", "date": "2021-03-20", "value": 34107.0, "note": ""}, {"id": "xl_151", "date": "2021-04-03", "value": 34268.0, "note": ""}, {"id": "xl_152", "date": "2021-04-17", "value": 34464.0, "note": ""}, {"id": "xl_153", "date": "2021-05-01", "value": 34584.0, "note": ""}, {"id": "xl_154", "date": "2021-05-15", "value": 34675.0, "note": ""}, {"id": "xl_155", "date": "2021-05-22", "value": 34723.0, "note": ""}, {"id": "xl_156", "date": "2021-06-06", "value": 34794.0, "note": ""}, {"id": "xl_157", "date": "2021-06-19", "value": 34808.0, "note": ""}, {"id": "xl_158", "date": "2021-07-09", "value": 34818.0, "note": ""}, {"id": "xl_159", "date": "2021-07-18", "value": 34824.0, "note": ""}, {"id": "xl_160", "date": "2021-08-02", "value": 34828.0, "note": ""}, {"id": "xl_161", "date": "2021-08-18", "value": 34842.0, "note": ""}, {"id": "xl_162", "date": "2021-08-28", "value": 34877.0, "note": ""}, {"id": "xl_163", "date": "2021-09-06", "value": 34910.0, "note": ""}, {"id": "xl_164", "date": "2021-09-18", "value": 34926.0, "note": ""}, {"id": "xl_165", "date": "2021-09-27", "value": 34976.0, "note": ""}, {"id": "xl_166", "date": "2021-10-08", "value": 35052.0, "note": ""}, {"id": "xl_167", "date": "2021-10-20", "value": 35169.0, "note": ""}, {"id": "xl_168", "date": "2021-11-05", "value": 35368.0, "note": ""}, {"id": "xl_169", "date": "2021-11-28", "value": 35732.0, "note": ""}, {"id": "xl_170", "date": "2021-12-08", "value": 35932.0, "note": ""}, {"id": "xl_171", "date": "2021-12-22", "value": 36210.0, "note": ""}, {"id": "xl_172", "date": "2021-12-30", "value": 36372.0, "note": ""}, {"id": "xl_173", "date": "2021-12-31", "value": 36390.0, "note": ""}, {"id": "xl_174", "date": "2022-01-01", "value": 36403.0, "note": ""}, {"id": "xl_175", "date": "2022-01-14", "value": 36664.0, "note": ""}, {"id": "xl_176", "date": "2022-01-26", "value": 36897.0, "note": ""}, {"id": "xl_177", "date": "2022-02-13", "value": 37224.0, "note": ""}, {"id": "xl_178", "date": "2022-02-23", "value": 37372.0, "note": ""}, {"id": "xl_179", "date": "2022-03-07", "value": 37584.0, "note": ""}, {"id": "xl_180", "date": "2022-03-13", "value": 37665.0, "note": ""}, {"id": "xl_181", "date": "2022-03-25", "value": 37806.0, "note": ""}, {"id": "xl_182", "date": "2022-04-10", "value": 37985.0, "note": ""}, {"id": "xl_183", "date": "2022-04-24", "value": 38111.0, "note": ""}, {"id": "xl_184", "date": "2022-05-07", "value": 38196.0, "note": ""}, {"id": "xl_185", "date": "2022-05-29", "value": 38227.0, "note": ""}, {"id": "xl_186", "date": "2022-06-14", "value": 38266.0, "note": ""}, {"id": "xl_187", "date": "2022-06-26", "value": 38267.0, "note": ""}, {"id": "xl_188", "date": "2022-07-02", "value": 38268.0, "note": ""}, {"id": "xl_189", "date": "2022-07-16", "value": 38279.0, "note": ""}, {"id": "xl_190", "date": "2022-07-19", "value": 38279.0, "note": ""}, {"id": "xl_191", "date": "2022-07-30", "value": 38279.0, "note": ""}, {"id": "xl_192", "date": "2022-08-06", "value": 38279.0, "note": ""}, {"id": "xl_193", "date": "2022-08-13", "value": 38281.0, "note": ""}, {"id": "xl_194", "date": "2022-08-15", "value": 38281.0, "note": ""}, {"id": "xl_195", "date": "2022-08-20", "value": 38281.0, "note": ""}, {"id": "xl_196", "date": "2022-08-26", "value": 38295.0, "note": ""}, {"id": "xl_197", "date": "2022-08-31", "value": 38299.0, "note": ""}, {"id": "xl_198", "date": "2022-09-02", "value": 38304.0, "note": ""}, {"id": "xl_199", "date": "2022-09-09", "value": 38315.0, "note": ""}, {"id": "xl_200", "date": "2022-09-13", "value": 38332.0, "note": ""}, {"id": "xl_201", "date": "2022-09-18", "value": 38355.0, "note": ""}, {"id": "xl_202", "date": "2022-09-25", "value": 38402.0, "note": ""}, {"id": "xl_203", "date": "2022-10-01", "value": 38442.0, "note": ""}, {"id": "xl_204", "date": "2022-10-06", "value": 38477.0, "note": ""}, {"id": "xl_205", "date": "2022-10-11", "value": 38500.0, "note": ""}, {"id": "xl_206", "date": "2022-10-17", "value": 38527.0, "note": ""}, {"id": "xl_207", "date": "2022-10-18", "value": 38536.0, "note": ""}, {"id": "xl_208", "date": "2022-10-22", "value": 38561.0, "note": ""}, {"id": "xl_209", "date": "2022-10-23", "value": 38566.0, "note": ""}, {"id": "xl_210", "date": "2022-10-27", "value": 38590.0, "note": ""}, {"id": "xl_211", "date": "2022-11-02", "value": 38621.0, "note": ""}, {"id": "xl_212", "date": "2022-11-05", "value": 38644.0, "note": ""}, {"id": "xl_213", "date": "2022-11-06", "value": 38656.0, "note": ""}, {"id": "xl_214", "date": "2022-11-08", "value": 38668.0, "note": ""}, {"id": "xl_215", "date": "2022-11-12", "value": 38712.0, "note": ""}, {"id": "xl_216", "date": "2022-11-16", "value": 38757.0, "note": ""}, {"id": "xl_217", "date": "2022-11-19", "value": 38786.0, "note": ""}, {"id": "xl_218", "date": "2022-11-23", "value": 38857.0, "note": ""}, {"id": "xl_219", "date": "2022-11-25", "value": 38882.0, "note": ""}, {"id": "xl_220", "date": "2022-11-26", "value": 38895.0, "note": ""}, {"id": "xl_221", "date": "2022-11-30", "value": 38959.0, "note": ""}, {"id": "xl_222", "date": "2022-12-03", "value": 39001.0, "note": ""}, {"id": "xl_223", "date": "2022-12-04", "value": 39021.0, "note": ""}, {"id": "xl_224", "date": "2022-12-05", "value": 39039.0, "note": ""}, {"id": "xl_225", "date": "2022-12-06", "value": 30954.0, "note": ""}, {"id": "xl_226", "date": "2022-12-07", "value": 39067.0, "note": ""}, {"id": "xl_227", "date": "2022-12-09", "value": 39094.0, "note": ""}, {"id": "xl_228", "date": "2022-12-10", "value": 39116.0, "note": ""}, {"id": "xl_229", "date": "2022-12-14", "value": 39198.0, "note": ""}, {"id": "xl_230", "date": "2022-12-18", "value": 39276.0, "note": ""}, {"id": "xl_231", "date": "2022-12-21", "value": 39336.0, "note": ""}, {"id": "xl_232", "date": "2022-12-23", "value": 39262.0, "note": ""}, {"id": "xl_233", "date": "2022-12-24", "value": 39375.0, "note": ""}, {"id": "xl_234", "date": "2022-12-25", "value": 39388.0, "note": ""}, {"id": "xl_235", "date": "2022-12-26", "value": 39401.0, "note": ""}, {"id": "xl_236", "date": "2022-12-27", "value": 39416.0, "note": ""}, {"id": "xl_237", "date": "2022-12-28", "value": 39430.0, "note": ""}, {"id": "xl_238", "date": "2022-12-29", "value": 39448.0, "note": ""}, {"id": "xl_239", "date": "2022-12-30", "value": 39466.0, "note": ""}, {"id": "xl_240", "date": "2022-12-31", "value": 39479.0, "note": ""}, {"id": "xl_241", "date": "2023-01-06", "value": 39556.0, "note": ""}, {"id": "xl_242", "date": "2023-01-07", "value": 39567.0, "note": ""}, {"id": "xl_243", "date": "2023-01-08", "value": 39584.0, "note": ""}, {"id": "xl_244", "date": "2023-01-09", "value": 39598.0, "note": ""}, {"id": "xl_245", "date": "2023-01-13", "value": 39658.0, "note": ""}, {"id": "xl_246", "date": "2023-01-14", "value": 39670.0, "note": ""}, {"id": "xl_247", "date": "2023-01-15", "value": 39682.0, "note": ""}, {"id": "xl_248", "date": "2023-01-17", "value": 39711.0, "note": ""}, {"id": "xl_249", "date": "2023-01-18", "value": 39279.0, "note": ""}, {"id": "xl_250", "date": "2023-01-19", "value": 39746.0, "note": ""}, {"id": "xl_251", "date": "2023-01-23", "value": 39822.0, "note": ""}, {"id": "xl_252", "date": "2023-01-25", "value": 39856.0, "note": ""}, {"id": "xl_253", "date": "2023-01-28", "value": 39912.0, "note": ""}, {"id": "xl_254", "date": "2023-01-29", "value": 39930.0, "note": ""}, {"id": "xl_255", "date": "2023-02-04", "value": 40026.0, "note": ""}, {"id": "xl_256", "date": "2023-02-05", "value": 40051.0, "note": ""}, {"id": "xl_257", "date": "2023-02-07", "value": 40088.0, "note": ""}, {"id": "xl_258", "date": "2023-02-10", "value": 40136.0, "note": ""}, {"id": "xl_259", "date": "2023-02-12", "value": 40170.0, "note": ""}, {"id": "xl_260", "date": "2023-02-13", "value": 40185.0, "note": ""}, {"id": "xl_261", "date": "2023-02-14", "value": 40204.0, "note": ""}, {"id": "xl_262", "date": "2023-02-15", "value": 40224.0, "note": ""}, {"id": "xl_263", "date": "2023-02-16", "value": 40239.0, "note": ""}, {"id": "xl_264", "date": "2023-02-18", "value": 40258.0, "note": ""}, {"id": "xl_265", "date": "2023-02-21", "value": 40287.0, "note": ""}, {"id": "xl_266", "date": "2023-02-22", "value": 40298.0, "note": ""}, {"id": "xl_267", "date": "2023-02-25", "value": 40337.0, "note": ""}, {"id": "xl_268", "date": "2023-02-27", "value": 40370.0, "note": ""}, {"id": "xl_269", "date": "2023-02-28", "value": 40383.0, "note": ""}, {"id": "xl_270", "date": "2023-03-01", "value": 40394.0, "note": ""}, {"id": "xl_271", "date": "2023-03-02", "value": 40402.0, "note": ""}, {"id": "xl_272", "date": "2023-03-03", "value": 40412.0, "note": ""}, {"id": "xl_273", "date": "2023-03-04", "value": 40425.0, "note": ""}, {"id": "xl_274", "date": "2023-03-05", "value": 40443.0, "note": ""}, {"id": "xl_275", "date": "2023-03-06", "value": 40457.0, "note": ""}, {"id": "xl_276", "date": "2023-03-07", "value": 40467.0, "note": ""}, {"id": "xl_277", "date": "2023-03-08", "value": 40478.0, "note": ""}, {"id": "xl_278", "date": "2023-03-09", "value": 40485.0, "note": ""}, {"id": "xl_279", "date": "2023-03-11", "value": 40505.0, "note": ""}, {"id": "xl_280", "date": "2023-03-13", "value": 40533.0, "note": ""}, {"id": "xl_281", "date": "2023-03-15", "value": 40563.0, "note": ""}, {"id": "xl_282", "date": "2023-03-19", "value": 40595.0, "note": ""}, {"id": "xl_283", "date": "2023-03-22", "value": 40615.0, "note": ""}, {"id": "xl_284", "date": "2023-03-25", "value": 40630.0, "note": ""}, {"id": "xl_285", "date": "2023-03-26", "value": 40644.0, "note": ""}, {"id": "xl_286", "date": "2023-03-27", "value": 40654.0, "note": ""}, {"id": "xl_287", "date": "2023-03-30", "value": 40692.0, "note": ""}, {"id": "xl_288", "date": "2023-03-31", "value": 40703.0, "note": ""}, {"id": "xl_289", "date": "2023-04-02", "value": 40723.0, "note": ""}, {"id": "xl_290", "date": "2023-04-05", "value": 40757.0, "note": ""}, {"id": "xl_291", "date": "2023-04-09", "value": 40802.0, "note": ""}, {"id": "xl_292", "date": "2023-04-12", "value": 40834.0, "note": ""}, {"id": "xl_293", "date": "2023-04-15", "value": 40868.0, "note": ""}, {"id": "xl_294", "date": "2023-04-16", "value": 40881.0, "note": ""}, {"id": "xl_295", "date": "2023-04-21", "value": 40921.0, "note": ""}, {"id": "xl_296", "date": "2023-04-23", "value": 40935.0, "note": ""}, {"id": "xl_297", "date": "2023-04-27", "value": 40955.0, "note": ""}, {"id": "xl_298", "date": "2023-04-30", "value": 40970.0, "note": ""}, {"id": "xl_299", "date": "2023-05-02", "value": 40978.0, "note": ""}, {"id": "xl_300", "date": "2023-05-05", "value": 40989.0, "note": ""}, {"id": "xl_301", "date": "2023-05-07", "value": 40989.0, "note": ""}, {"id": "xl_302", "date": "2023-05-11", "value": 41009.0, "note": ""}, {"id": "xl_303", "date": "2023-05-13", "value": 41019.0, "note": ""}, {"id": "xl_304", "date": "2023-05-16", "value": 41033.0, "note": ""}, {"id": "xl_305", "date": "2023-05-17", "value": 41048.0, "note": ""}, {"id": "xl_306", "date": "2023-05-21", "value": 41063.0, "note": ""}, {"id": "xl_307", "date": "2023-05-25", "value": 41067.0, "note": ""}, {"id": "xl_308", "date": "2023-05-29", "value": 41068.0, "note": ""}, {"id": "xl_309", "date": "2023-05-31", "value": 41070.0, "note": ""}, {"id": "xl_310", "date": "2023-06-04", "value": 41070.0, "note": ""}, {"id": "xl_311", "date": "2023-06-09", "value": 41072.0, "note": ""}, {"id": "xl_312", "date": "2023-06-16", "value": 41074.0, "note": ""}, {"id": "xl_313", "date": "2023-06-20", "value": 41075.0, "note": ""}, {"id": "xl_314", "date": "2023-06-23", "value": 41075.0, "note": ""}, {"id": "xl_315", "date": "2023-06-28", "value": 41076.0, "note": ""}, {"id": "xl_316", "date": "2023-07-03", "value": 41077.0, "note": ""}, {"id": "xl_317", "date": "2023-07-06", "value": 41077.0, "note": ""}, {"id": "xl_318", "date": "2023-07-09", "value": 41077.0, "note": ""}, {"id": "xl_319", "date": "2023-07-11", "value": 41077.0, "note": ""}, {"id": "xl_320", "date": "2023-07-22", "value": 41077.0, "note": ""}, {"id": "xl_321", "date": "2023-07-30", "value": 41081.0, "note": ""}, {"id": "xl_322", "date": "2023-08-02", "value": 41098.0, "note": ""}, {"id": "xl_323", "date": "2023-08-15", "value": 41098.0, "note": ""}, {"id": "xl_324", "date": "2023-08-20", "value": 41098.0, "note": ""}, {"id": "xl_325", "date": "2023-08-23", "value": 41098.0, "note": ""}, {"id": "xl_326", "date": "2023-08-28", "value": 41098.0, "note": ""}, {"id": "xl_327", "date": "2023-09-01", "value": 41106.0, "note": ""}, {"id": "xl_328", "date": "2023-09-03", "value": 41107.0, "note": ""}, {"id": "xl_329", "date": "2023-09-11", "value": 41107.0, "note": ""}, {"id": "xl_330", "date": "2023-09-16", "value": 41107.0, "note": ""}, {"id": "xl_331", "date": "2023-09-20", "value": 41109.0, "note": ""}, {"id": "xl_332", "date": "2023-09-26", "value": 41120.0, "note": ""}, {"id": "xl_333", "date": "2023-10-02", "value": 41128.0, "note": ""}, {"id": "xl_334", "date": "2023-10-05", "value": 41134.0, "note": ""}, {"id": "xl_335", "date": "2023-10-07", "value": 41139.0, "note": ""}, {"id": "xl_336", "date": "2023-10-09", "value": 41149.0, "note": ""}, {"id": "xl_337", "date": "2023-10-11", "value": 41150.0, "note": ""}, {"id": "xl_338", "date": "2023-10-16", "value": 41178.0, "note": ""}, {"id": "xl_339", "date": "2023-10-26", "value": 41239.0, "note": ""}, {"id": "xl_340", "date": "2023-10-30", "value": 41273.0, "note": ""}, {"id": "xl_341", "date": "2023-11-04", "value": 41315.0, "note": ""}, {"id": "xl_342", "date": "2023-11-06", "value": 41327.0, "note": ""}, {"id": "xl_343", "date": "2023-11-08", "value": 41350.0, "note": ""}, {"id": "xl_344", "date": "2023-11-10", "value": 41375.0, "note": ""}, {"id": "xl_345", "date": "2023-11-12", "value": 41392.0, "note": ""}, {"id": "xl_346", "date": "2023-11-14", "value": 41413.0, "note": ""}, {"id": "xl_347", "date": "2023-11-17", "value": 41437.0, "note": ""}, {"id": "xl_348", "date": "2023-11-19", "value": 41469.0, "note": ""}, {"id": "xl_349", "date": "2023-11-21", "value": 41510.0, "note": ""}, {"id": "xl_350", "date": "2023-11-26", "value": 41563.0, "note": ""}, {"id": "xl_351", "date": "2023-11-30", "value": 41639.0, "note": ""}, {"id": "xl_352", "date": "2023-12-03", "value": 41688.0, "note": ""}, {"id": "xl_353", "date": "2023-12-08", "value": 41791.0, "note": ""}, {"id": "xl_354", "date": "2023-12-10", "value": 41827.0, "note": ""}, {"id": "xl_355", "date": "2023-12-14", "value": 41882.0, "note": ""}, {"id": "xl_356", "date": "2023-12-17", "value": 41936.0, "note": ""}, {"id": "xl_357", "date": "2023-12-20", "value": 41984.0, "note": ""}, {"id": "xl_358", "date": "2023-12-22", "value": 42016.0, "note": ""}, {"id": "xl_359", "date": "2023-12-24", "value": 42036.0, "note": ""}, {"id": "xl_360", "date": "2023-12-28", "value": 42093.0, "note": ""}, {"id": "xl_361", "date": "2023-12-30", "value": 42121.0, "note": ""}, {"id": "xl_362", "date": "2023-12-31", "value": 42136.0, "note": ""}, {"id": "xl_363", "date": "2024-01-01", "value": 42153.0, "note": ""}, {"id": "xl_364", "date": "2024-01-04", "value": 42187.0, "note": ""}, {"id": "xl_365", "date": "2024-01-07", "value": 42232.0, "note": ""}, {"id": "xl_366", "date": "2024-01-09", "value": 42281.0, "note": ""}, {"id": "xl_367", "date": "2024-01-11", "value": 42324.0, "note": ""}, {"id": "xl_368", "date": "2024-01-13", "value": 42366.0, "note": ""}, {"id": "xl_369", "date": "2024-01-17", "value": 42451.0, "note": ""}, {"id": "xl_370", "date": "2024-01-19", "value": 42484.0, "note": ""}, {"id": "xl_371", "date": "2024-01-21", "value": 42524.0, "note": ""}, {"id": "xl_372", "date": "2024-01-23", "value": 42567.0, "note": ""}, {"id": "xl_373", "date": "2024-01-25", "value": 42592.0, "note": ""}, {"id": "xl_374", "date": "2024-01-27", "value": 42614.0, "note": ""}, {"id": "xl_375", "date": "2024-01-30", "value": 42668.0, "note": ""}, {"id": "xl_376", "date": "2024-01-31", "value": 42684.0, "note": ""}, {"id": "xl_377", "date": "2024-02-03", "value": 42723.0, "note": ""}, {"id": "xl_378", "date": "2024-02-05", "value": 42744.0, "note": ""}, {"id": "xl_379", "date": "2024-02-07", "value": 42771.0, "note": ""}, {"id": "xl_380", "date": "2024-02-11", "value": 42808.0, "note": ""}, {"id": "xl_381", "date": "2024-02-13", "value": 42834.0, "note": ""}, {"id": "xl_382", "date": "2024-02-14", "value": 42852.0, "note": ""}, {"id": "xl_383", "date": "2024-02-17", "value": 42876.0, "note": ""}, {"id": "xl_384", "date": "2024-02-18", "value": 42886.0, "note": ""}, {"id": "xl_385", "date": "2024-02-24", "value": 42959.0, "note": ""}, {"id": "xl_386", "date": "2024-02-25", "value": 42968.0, "note": ""}, {"id": "xl_387", "date": "2024-02-28", "value": 43008.0, "note": ""}, {"id": "xl_388", "date": "2024-02-29", "value": 43015.0, "note": ""}, {"id": "xl_389", "date": "2024-03-02", "value": 43037.0, "note": ""}, {"id": "xl_390", "date": "2024-03-05", "value": 43064.0, "note": ""}, {"id": "xl_391", "date": "2024-03-08", "value": 43098.0, "note": ""}, {"id": "xl_392", "date": "2024-03-10", "value": 43110.0, "note": ""}, {"id": "xl_393", "date": "2024-03-11", "value": 43123.0, "note": ""}, {"id": "xl_394", "date": "2024-03-13", "value": 43143.0, "note": ""}, {"id": "xl_395", "date": "2024-03-16", "value": 43162.0, "note": ""}, {"id": "xl_396", "date": "2024-03-22", "value": 43213.0, "note": ""}, {"id": "xl_397", "date": "2024-03-24", "value": 43236.0, "note": ""}, {"id": "xl_398", "date": "2024-03-29", "value": 43270.0, "note": ""}, {"id": "xl_399", "date": "2024-03-31", "value": 43276.0, "note": ""}, {"id": "xl_400", "date": "2024-04-01", "value": 43281.0, "note": ""}, {"id": "xl_401", "date": "2024-04-04", "value": 44301.0, "note": ""}, {"id": "xl_402", "date": "2024-04-08", "value": 43309.0, "note": ""}, {"id": "xl_403", "date": "2024-04-11", "value": 43320.0, "note": ""}, {"id": "xl_404", "date": "2024-04-15", "value": 43330.0, "note": ""}, {"id": "xl_405", "date": "2024-04-17", "value": 43346.0, "note": ""}, {"id": "xl_406", "date": "2024-04-18", "value": 43371.0, "note": ""}, {"id": "xl_407", "date": "2024-04-21", "value": 43393.0, "note": ""}, {"id": "xl_408", "date": "2024-04-26", "value": 43443.0, "note": ""}, {"id": "xl_409", "date": "2024-05-01", "value": 43449.0, "note": ""}, {"id": "xl_410", "date": "2024-05-05", "value": 43458.0, "note": ""}, {"id": "xl_411", "date": "2024-05-10", "value": 43470.0, "note": ""}, {"id": "xl_412", "date": "2024-05-12", "value": 43472.0, "note": ""}, {"id": "xl_413", "date": "2024-05-15", "value": 43473.0, "note": ""}, {"id": "xl_414", "date": "2024-05-19", "value": 43477.0, "note": ""}, {"id": "xl_415", "date": "2024-05-25", "value": 43480.0, "note": ""}, {"id": "xl_416", "date": "2024-05-26", "value": 43482.0, "note": ""}, {"id": "xl_417", "date": "2024-05-30", "value": 43489.0, "note": ""}, {"id": "xl_418", "date": "2024-06-01", "value": 43498.0, "note": ""}, {"id": "xl_419", "date": "2024-06-05", "value": 43509.0, "note": ""}, {"id": "xl_420", "date": "2024-06-06", "value": 43509.0, "note": ""}, {"id": "xl_421", "date": "2024-06-08", "value": 43509.0, "note": ""}, {"id": "xl_422", "date": "2024-06-12", "value": 43516.0, "note": ""}, {"id": "xl_423", "date": "2024-06-16", "value": 43522.0, "note": ""}, {"id": "xl_424", "date": "2024-06-21", "value": 43532.0, "note": ""}, {"id": "xl_425", "date": "2024-06-24", "value": 43523.0, "note": ""}, {"id": "xl_426", "date": "2024-06-29", "value": 43524.0, "note": ""}, {"id": "xl_427", "date": "2024-06-30", "value": 43524.0, "note": ""}, {"id": "xl_428", "date": "2024-07-06", "value": 43524.0, "note": ""}, {"id": "xl_429", "date": "2024-07-12", "value": 43526.0, "note": ""}, {"id": "xl_430", "date": "2024-07-26", "value": 43526.0, "note": ""}, {"id": "xl_431", "date": "2024-08-03", "value": 43526.0, "note": ""}, {"id": "xl_432", "date": "2024-08-18", "value": 43526.0, "note": ""}, {"id": "xl_433", "date": "2024-08-31", "value": 43527.0, "note": ""}, {"id": "xl_434", "date": "2024-09-06", "value": 43527.0, "note": ""}, {"id": "xl_435", "date": "2024-09-12", "value": 43532.0, "note": ""}, {"id": "xl_436", "date": "2024-09-13", "value": 43540.0, "note": ""}, {"id": "xl_437", "date": "2024-09-14", "value": 43550.0, "note": ""}, {"id": "xl_438", "date": "2024-09-16", "value": 43570.0, "note": ""}, {"id": "xl_439", "date": "2024-09-20", "value": 43574.0, "note": ""}, {"id": "xl_440", "date": "2024-09-24", "value": 43577.0, "note": ""}, {"id": "xl_441", "date": "2024-09-28", "value": 43586.0, "note": ""}, {"id": "xl_442", "date": "2024-09-30", "value": 43598.0, "note": ""}, {"id": "xl_443", "date": "2024-10-02", "value": 43608.0, "note": ""}, {"id": "xl_444", "date": "2024-10-06", "value": 43636.0, "note": ""}, {"id": "xl_445", "date": "2024-10-10", "value": 43653.0, "note": ""}, {"id": "xl_446", "date": "2024-10-13", "value": 43672.0, "note": ""}, {"id": "xl_447", "date": "2024-10-16", "value": 43690.0, "note": ""}, {"id": "xl_448", "date": "2024-10-18", "value": 43698.0, "note": ""}, {"id": "xl_449", "date": "2024-10-21", "value": 43713.0, "note": ""}, {"id": "xl_450", "date": "2024-10-23", "value": 43724.0, "note": ""}, {"id": "xl_451", "date": "2024-10-25", "value": 43732.0, "note": ""}, {"id": "xl_452", "date": "2024-10-30", "value": 43763.0, "note": ""}, {"id": "xl_453", "date": "2024-10-31", "value": 43767.0, "note": ""}, {"id": "xl_454", "date": "2024-11-02", "value": 43784.0, "note": ""}, {"id": "xl_455", "date": "2024-11-04", "value": 43808.0, "note": ""}, {"id": "xl_456", "date": "2024-11-05", "value": 43822.0, "note": ""}, {"id": "xl_457", "date": "2024-11-07", "value": 43836.0, "note": ""}, {"id": "xl_458", "date": "2024-11-10", "value": 43882.0, "note": ""}, {"id": "xl_459", "date": "2024-11-13", "value": 43931.0, "note": ""}, {"id": "xl_460", "date": "2024-11-16", "value": 43969.0, "note": ""}, {"id": "xl_461", "date": "2024-11-20", "value": 44028.0, "note": ""}, {"id": "xl_462", "date": "2024-11-23", "value": 44087.0, "note": ""}, {"id": "xl_463", "date": "2024-11-27", "value": 44133.0, "note": ""}, {"id": "xl_464", "date": "2024-11-29", "value": 44152.0, "note": ""}, {"id": "xl_465", "date": "2024-11-30", "value": 44172.0, "note": ""}, {"id": "xl_466", "date": "2024-12-24", "value": 44544.0, "note": ""}, {"id": "xl_467", "date": "2024-12-26", "value": 44574.0, "note": ""}, {"id": "xl_468", "date": "2024-12-27", "value": 44599.0, "note": ""}, {"id": "xl_469", "date": "2024-12-28", "value": 44620.0, "note": ""}, {"id": "xl_470", "date": "2024-12-29", "value": 44639.0, "note": ""}, {"id": "xl_471", "date": "2024-12-30", "value": 44660.0, "note": ""}, {"id": "xl_472", "date": "2024-12-31", "value": 44676.0, "note": ""}, {"id": "xl_473", "date": "2025-01-03", "value": 44733.0, "note": ""}, {"id": "xl_474", "date": "2025-01-05", "value": 44775.0, "note": ""}, {"id": "xl_475", "date": "2025-01-07", "value": 44813.0, "note": ""}, {"id": "xl_476", "date": "2025-01-11", "value": 44875.0, "note": ""}, {"id": "xl_477", "date": "2025-01-12", "value": 44893.0, "note": ""}, {"id": "xl_478", "date": "2025-01-13", "value": 44920.0, "note": ""}, {"id": "xl_479", "date": "2025-01-16", "value": 44975.0, "note": ""}, {"id": "xl_480", "date": "2025-01-17", "value": 44990.0, "note": ""}, {"id": "xl_481", "date": "2025-01-19", "value": 45029.0, "note": ""}, {"id": "xl_482", "date": "2025-01-21", "value": 45069.0, "note": ""}, {"id": "xl_483", "date": "2025-01-24", "value": 45126.0, "note": ""}, {"id": "xl_484", "date": "2025-01-26", "value": 45162.0, "note": ""}, {"id": "xl_485", "date": "2025-01-28", "value": 45189.0, "note": ""}, {"id": "xl_486", "date": "2025-01-30", "value": 45213.0, "note": ""}, {"id": "xl_487", "date": "2025-01-31", "value": 45233.0, "note": ""}, {"id": "xl_488", "date": "2025-02-02", "value": 45258.0, "note": ""}, {"id": "xl_489", "date": "2025-02-04", "value": 45292.0, "note": ""}, {"id": "xl_490", "date": "2025-02-06", "value": 45339.0, "note": ""}, {"id": "xl_491", "date": "2025-02-09", "value": 45379.0, "note": ""}, {"id": "xl_492", "date": "2025-02-15", "value": 45478.0, "note": ""}, {"id": "xl_493", "date": "2025-02-18", "value": 45539.0, "note": ""}, {"id": "xl_494", "date": "2025-02-22", "value": 45600.0, "note": ""}, {"id": "xl_495", "date": "2025-02-23", "value": 45620.0, "note": ""}, {"id": "xl_496", "date": "2025-02-26", "value": 45654.0, "note": ""}, {"id": "xl_497", "date": "2025-02-28", "value": 45679.0, "note": ""}, {"id": "xl_498", "date": "2025-03-03", "value": 45713.0, "note": ""}, {"id": "xl_499", "date": "2025-03-07", "value": 45752.0, "note": ""}, {"id": "xl_500", "date": "2025-03-11", "value": 45789.0, "note": ""}, {"id": "xl_501", "date": "2025-03-14", "value": 45816.0, "note": ""}, {"id": "xl_502", "date": "2025-03-18", "value": 45875.0, "note": ""}, {"id": "xl_503", "date": "2025-03-22", "value": 45907.0, "note": ""}, {"id": "xl_504", "date": "2025-03-25", "value": 45932.0, "note": ""}, {"id": "xl_505", "date": "2025-03-29", "value": 45964.0, "note": ""}, {"id": "xl_506", "date": "2025-03-30", "value": 45977.0, "note": ""}, {"id": "xl_507", "date": "2025-03-31", "value": 45990.0, "note": ""}, {"id": "xl_508", "date": "2025-04-03", "value": 46009.0, "note": ""}, {"id": "xl_509", "date": "2025-04-09", "value": 46034.0, "note": ""}, {"id": "xl_510", "date": "2025-04-11", "value": 46055.0, "note": ""}, {"id": "xl_511", "date": "2025-04-17", "value": 46076.0, "note": ""}, {"id": "xl_512", "date": "2025-04-20", "value": 46086.0, "note": ""}, {"id": "xl_513", "date": "2025-04-24", "value": 46099.0, "note": ""}, {"id": "xl_514", "date": "2025-04-26", "value": 46111.0, "note": ""}, {"id": "xl_515", "date": "2025-04-28", "value": 46116.0, "note": ""}, {"id": "xl_516", "date": "2025-04-30", "value": 46119.0, "note": ""}, {"id": "xl_517", "date": "2025-05-04", "value": 46124.0, "note": ""}, {"id": "xl_518", "date": "2025-05-07", "value": 46143.0, "note": ""}, {"id": "xl_519", "date": "2024-05-09", "value": 46157.0, "note": ""}, {"id": "xl_520", "date": "2025-05-13", "value": 46164.0, "note": ""}, {"id": "xl_521", "date": "2025-05-16", "value": 46178.0, "note": ""}, {"id": "xl_522", "date": "2025-05-23", "value": 46201.0, "note": ""}, {"id": "xl_523", "date": "2025-05-27", "value": 46216.0, "note": ""}, {"id": "xl_524", "date": "2025-05-28", "value": 46220.0, "note": ""}, {"id": "xl_526", "date": "2025-06-07", "value": 46227.0, "note": ""}, {"id": "xl_527", "date": "2025-06-09", "value": 46231.0, "note": ""}, {"id": "xl_528", "date": "2025-07-05", "value": 46231.0, "note": ""}, {"id": "xl_529", "date": "2025-07-20", "value": 46233.0, "note": ""}, {"id": "xl_530", "date": "2025-07-23", "value": 46233.0, "note": ""}, {"id": "xl_531", "date": "2025-08-10", "value": 46235.0, "note": ""}, {"id": "xl_532", "date": "2025-08-30", "value": 46235.0, "note": ""}, {"id": "xl_533", "date": "2025-09-10", "value": 46235.0, "note": ""}, {"id": "xl_534", "date": "2025-09-14", "value": 46236.0, "note": ""}, {"id": "xl_535", "date": "2025-09-20", "value": 46239.0, "note": ""}, {"id": "xl_536", "date": "2025-10-01", "value": 46256.0, "note": ""}, {"id": "xl_537", "date": "2025-10-06", "value": 46295.0, "note": ""}, {"id": "xl_538", "date": "2025-10-09", "value": 46324.0, "note": ""}, {"id": "xl_539", "date": "2025-10-12", "value": 46338.0, "note": ""}, {"id": "xl_540", "date": "2025-10-18", "value": 46378.0, "note": ""}, {"id": "xl_541", "date": "2025-10-25", "value": 46431.0, "note": ""}, {"id": "xl_542", "date": "2025-10-31", "value": 46488.0, "note": ""}, {"id": "xl_543", "date": "2025-11-05", "value": 46531.0, "note": ""}, {"id": "xl_544", "date": "2025-11-10", "value": 46587.0, "note": ""}, {"id": "xl_545", "date": "2025-11-14", "value": 46636.0, "note": ""}, {"id": "xl_546", "date": "2025-11-18", "value": 46685.0, "note": ""}, {"id": "xl_547", "date": "2025-11-24", "value": 46787.0, "note": ""}, {"id": "xl_548", "date": "2025-11-28", "value": 46858.0, "note": ""}, {"id": "xl_549", "date": "2025-11-30", "value": 46888.0, "note": ""}, {"id": "xl_550", "date": "2025-12-31", "value": 47375.0, "note": ""}, {"id": "xl_551", "date": "2026-01-01", "value": 47394.0, "note": ""}, {"id": "xl_552", "date": "2026-01-06", "value": 47488.0, "note": ""}, {"id": "xl_553", "date": "2026-01-10", "value": 47573.0, "note": ""}, {"id": "xl_554", "date": "2026-01-16", "value": 47693.0, "note": ""}, {"id": "xl_555", "date": "2026-01-22", "value": 47794.0, "note": ""}, {"id": "xl_556", "date": "2026-01-23", "value": 47819.0, "note": ""}, {"id": "xl_557", "date": "2026-01-26", "value": 47871.0, "note": ""}, {"id": "xl_558", "date": "2026-01-30", "value": 47927.0, "note": ""}, {"id": "xl_559", "date": "2026-02-01", "value": 47903.0, "note": ""}, {"id": "xl_560", "date": "2026-02-06", "value": 48043.0, "note": ""}, {"id": "xl_561", "date": "2026-02-11", "value": 48108.0, "note": ""}, {"id": "xl_562", "date": "2026-02-17", "value": 48118.0, "note": ""}, {"id": "xl_563", "date": "2026-02-20", "value": 48220.0, "note": ""}, {"id": "xl_564", "date": "2026-02-23", "value": 48273.0, "note": ""}, {"id": "xl_565", "date": "2026-02-27", "value": 48320.0, "note": ""}, {"id": "xl_566", "date": "2026-02-28", "value": 48331.0, "note": ""}, {"id": "xl_567", "date": "2026-03-11", "value": 48410.0, "note": ""}, {"id": "xl_568", "date": "2026-03-17", "value": 48464.0, "note": ""}, {"id": "xl_569", "date": "2026-03-20", "value": 48484.0, "note": ""}, {"id": "xl_570", "date": "2026-03-28", "value": 48556.0, "note": ""}, {"id": "xl_571", "date": "2026-04-03", "value": 48627.0, "note": ""}, {"id": "xl_572", "date": "2026-04-08", "value": 48654.0, "note": ""}, {"id": "xl_573", "date": "2026-04-12", "value": 48688.0, "note": ""}, {"id": "xl_574", "date": "2026-04-18", "value": 48721.0, "note": ""}, {"id": "xl_575", "date": "2026-04-24", "value": 48752.0, "note": ""}, {"id": "xl_576", "date": "2026-05-02", "value": 48779.0, "note": ""}, {"id": "xl_577", "date": "2026-05-12", "value": 48787.0, "note": ""}];
+  saveData();
+  showToast('✓ 577 Zählerstände geladen (13.09.2013 – 12.05.2026)');
+}
+updateLastHint();
+renderDashboard();
+</script>
+</body>
+</html>
